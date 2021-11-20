@@ -9,8 +9,10 @@ public class Control : MonoBehaviour
     public Transform Button;
     public Transform Arm;
     Transform lowerMechanism;
-    float deviationAngle;
-    float deviationStep;
+    movementParameters JoystickParametersX;
+    movementParameters JoystickParametersY;
+    float deviationAngleX;
+    float deviationAngleY;
     Vector3 defaultJoysticPosition;
     movementParameters buttonParameters;
     movementParameters lowerMechanismParameters;
@@ -45,8 +47,10 @@ public class Control : MonoBehaviour
         lowerMechanism = Arm.GetChild(0).GetChild(0);
 
         defaultJoysticPosition = Joystick.transform.eulerAngles;
-        deviationStep = 0.5f;
-        deviationAngle = 10f;
+        deviationAngleX = 10f;
+        deviationAngleY = 10f;
+        JoystickParametersX = new movementParameters(defaultJoysticPosition.z + deviationAngleX, defaultJoysticPosition.z - deviationAngleX, 0.5f);
+        JoystickParametersY = new movementParameters(defaultJoysticPosition.x + deviationAngleY, defaultJoysticPosition.x - deviationAngleY, 0.5f);
 
         buttonParameters = new movementParameters(0, -0.025f, 0.005f);
 
@@ -103,7 +107,7 @@ public class Control : MonoBehaviour
         {
             try
             {
-                StartCoroutine(MoveJoystickAxisX(deviationStep));
+                StartCoroutine(RotateObjectAxisX(Joystick, 1, JoystickParametersX));
                 if (clawCanMove)
                     StartCoroutine(MoveObjectAxisX(Arm, -1, armParametersAxisX));
             }
@@ -116,7 +120,7 @@ public class Control : MonoBehaviour
         {
             try
             {
-                StartCoroutine(MoveJoystickAxisX(-deviationStep));
+                StartCoroutine(RotateObjectAxisX(Joystick, -1, JoystickParametersX));
                 if (clawCanMove)
                     StartCoroutine(MoveObjectAxisX(Arm, 1, armParametersAxisX));
             }
@@ -127,15 +131,15 @@ public class Control : MonoBehaviour
         }
         else
         {
-            if (Mathf.Abs(Joystick.transform.localEulerAngles.z - defaultJoysticPosition.z) > deviationStep)
-                StartCoroutine(MoveJoystickCenterAxisX());
+            if (Mathf.Abs(Joystick.transform.localEulerAngles.z - defaultJoysticPosition.z) > JoystickParametersX.Step)
+                StartCoroutine(RotateObjectInDefaultPositionAxisX(Joystick, defaultJoysticPosition, JoystickParametersX));
         }
 
         if (Input.GetKey(KeyCode.UpArrow))
         {
             try
             {
-                StartCoroutine(MoveJoystickAxisY(-deviationStep));
+                StartCoroutine(RotateObjectAxisY(Joystick, -1, JoystickParametersY));
                 if (clawCanMove)
                     StartCoroutine(MoveObjectAxisZ(Arm, -1, armParametersAxisZ));
             }
@@ -148,7 +152,7 @@ public class Control : MonoBehaviour
         {
             try
             {
-                StartCoroutine(MoveJoystickAxisY(deviationStep));
+                StartCoroutine(RotateObjectAxisY(Joystick, 1, JoystickParametersY));
                 if (clawCanMove)
                     StartCoroutine(MoveObjectAxisZ(Arm, 1, armParametersAxisZ));
             }
@@ -159,39 +163,40 @@ public class Control : MonoBehaviour
         }
         else
         {
-            if (Mathf.Abs(Joystick.transform.localEulerAngles.x - defaultJoysticPosition.x) > deviationStep)
-                StartCoroutine(MoveJoystickCenterAxisY());
+            if (Mathf.Abs(Joystick.transform.localEulerAngles.x - defaultJoysticPosition.x) > JoystickParametersY.Step)
+                StartCoroutine(RotateObjectInDefaultPositionAxisY(Joystick, defaultJoysticPosition, JoystickParametersY));
         }
     }
-    IEnumerator MoveJoystickAxisX(float step)
+
+    IEnumerator RotateObjectAxisX(Transform movable_object, float direction, movementParameters parameters)
     {
-        if (Mathf.Abs(Joystick.transform.localEulerAngles.z - defaultJoysticPosition.z) < deviationAngle)
+        if (direction > 0 && movable_object.transform.localEulerAngles.z < parameters.MaxValue || direction < 0 && movable_object.transform.localEulerAngles.z > parameters.MinValue)
         {
-            Joystick.transform.localEulerAngles += new Vector3(0, 0, step);
+            movable_object.transform.localEulerAngles += new Vector3(0, 0, parameters.Step * (direction > 0 ? 1 : -1));
         }
         yield return null;
     }
 
-    IEnumerator MoveJoystickCenterAxisX()
+    IEnumerator RotateObjectInDefaultPositionAxisX(Transform movable_object, Vector3 default_position, movementParameters parameters)
     {
-        float step = Joystick.transform.localEulerAngles.z < defaultJoysticPosition.z ? deviationStep : -deviationStep;
-        Joystick.transform.localEulerAngles += new Vector3(0, 0, step);
+        float step = movable_object.transform.localEulerAngles.z < default_position.z ? parameters.Step : -parameters.Step;
+        movable_object.transform.localEulerAngles += new Vector3(0, 0, step);
         yield return null;
     }
 
-    IEnumerator MoveJoystickAxisY(float step)
+    IEnumerator RotateObjectAxisY(Transform movable_object, float direction, movementParameters parameters)
     {
-        if (Mathf.Abs(Joystick.transform.localEulerAngles.x - defaultJoysticPosition.x) < deviationAngle)
+        if (direction > 0 && movable_object.transform.localEulerAngles.x < parameters.MaxValue || direction < 0 && movable_object.transform.localEulerAngles.x > parameters.MinValue)
         {
-            Joystick.transform.localEulerAngles += new Vector3(step, 0, 0);
+            movable_object.transform.localEulerAngles += new Vector3(parameters.Step * (direction > 0 ? 1 : -1), 0, 0);
         }
         yield return null;
     }
 
-    IEnumerator MoveJoystickCenterAxisY()
+    IEnumerator RotateObjectInDefaultPositionAxisY(Transform movable_object, Vector3 default_position, movementParameters parameters)
     {
-        float step = Joystick.transform.localEulerAngles.x < defaultJoysticPosition.x ? deviationStep : -deviationStep;
-        Joystick.transform.localEulerAngles += new Vector3(step, 0, 0);
+        float step = movable_object.transform.localEulerAngles.x < default_position.x ? parameters.Step : -parameters.Step;
+        movable_object.transform.localEulerAngles += new Vector3(step, 0, 0);
         yield return null;
     }
 
