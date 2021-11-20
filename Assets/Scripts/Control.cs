@@ -11,37 +11,55 @@ public class Control : MonoBehaviour
     Transform lowerMechanism;
     float deviationAngle;
     float deviationStep;
-    float buttonDistance;
-    float buttonStep;
-    float armDistance;
-    float armLowerStep;
-    float armStep;
-    float armMinX;
-    float armMinY;
-    float armMaxX;
-    float armMaxY;
     Vector3 defaultJoysticPosition;
-    Vector3 defaultButtonPosition;
-    Vector3 defaultArmPosition;
+    movementParameters buttonParameters;
+    movementParameters lowerMechanismParameters;
+    float lowerMechanismTime;
+    movementParameters armParametersAxisX;
+    movementParameters armParametersAxisZ;
+    bool clawCanMove;
+    float openClawTime;
+    float closeClawTime;
+
+    struct movementParameters
+    {
+        float maxValue;
+        float minValue;
+        float step;
+
+        public movementParameters(float maxValue, float minValue, float step)
+        {
+            this.maxValue = maxValue;
+            this.minValue = minValue;
+            this.step = step;
+        }
+
+        public float MaxValue { get => maxValue; set => maxValue = value; }
+        public float MinValue { get => minValue; set => minValue = value; }
+        public float Step { get => step; set => step = value; }
+    }
+
     // Start is called before the first frame update
     void Start()
     {
         lowerMechanism = Arm.GetChild(0).GetChild(0);
+
         defaultJoysticPosition = Joystick.transform.eulerAngles;
-        defaultButtonPosition = Button.transform.localPosition;
-        defaultArmPosition = lowerMechanism.transform.localPosition;
         deviationStep = 0.5f;
         deviationAngle = 10f;
-        buttonStep = 0.005f;
-        buttonDistance = 0.025f;
-        armDistance = 1;
-        armLowerStep = 0.005f;
-        armStep = 0.005f;
-        armMinX = -0.5f;
-        armMinY = -0.75f;
-        armMaxX = 0.5f;
-        armMaxY = 0.25f;
 
+        buttonParameters = new movementParameters(0, -0.025f, 0.005f);
+
+        lowerMechanismParameters = new movementParameters(6, 1, 0.01f);
+        lowerMechanismTime = 7f;
+
+        armParametersAxisX = new movementParameters(0.5f, -0.5f, 0.005f);
+        armParametersAxisZ = new movementParameters(0.25f, -0.75f, 0.005f);
+
+        clawCanMove = true;
+
+        openClawTime = 1f;
+        closeClawTime = 1f;
     }
 
     // Update is called once per frame
@@ -51,8 +69,7 @@ public class Control : MonoBehaviour
         {
             try
             {
-                StartCoroutine(MoveButtonDown(-buttonStep));
-                StartCoroutine(MoveArmDown(-armLowerStep));
+                StartCoroutine(MoveObjectAxisY(Button, -1, buttonParameters));
             }
             catch (Exception e)
             {
@@ -62,10 +79,7 @@ public class Control : MonoBehaviour
         else
             try
             {
-                if (Button.transform.localPosition.y < defaultButtonPosition.y)
-                    StartCoroutine(MoveButtonUp(buttonStep));
-                if (lowerMechanism.transform.localPosition.y < defaultArmPosition.y)
-                    StartCoroutine(MoveArmUp(armLowerStep));
+                StartCoroutine(MoveObjectAxisY(Button, 1, buttonParameters));
             }
             catch (Exception e)
             {
@@ -76,7 +90,8 @@ public class Control : MonoBehaviour
         {
             try
             {
-                StartCoroutine(LowerArm());
+                if (clawCanMove)
+                    StartCoroutine(LowerArm(lowerMechanismTime));
             }
             catch (Exception e)
             {
@@ -89,7 +104,8 @@ public class Control : MonoBehaviour
             try
             {
                 StartCoroutine(MoveJoystickAxisX(deviationStep));
-                StartCoroutine(MoveArmAxisXPlus(armStep));
+                if (clawCanMove)
+                    StartCoroutine(MoveObjectAxisX(Arm, -1, armParametersAxisX));
             }
             catch (Exception e)
             {
@@ -101,7 +117,8 @@ public class Control : MonoBehaviour
             try
             {
                 StartCoroutine(MoveJoystickAxisX(-deviationStep));
-                StartCoroutine(MoveArmAxisXMinus(armStep));
+                if (clawCanMove)
+                    StartCoroutine(MoveObjectAxisX(Arm, 1, armParametersAxisX));
             }
             catch (Exception e)
             {
@@ -119,7 +136,8 @@ public class Control : MonoBehaviour
             try
             {
                 StartCoroutine(MoveJoystickAxisY(-deviationStep));
-                StartCoroutine(MoveArmAxisYPlus(armStep));
+                if (clawCanMove)
+                    StartCoroutine(MoveObjectAxisZ(Arm, -1, armParametersAxisZ));
             }
             catch (Exception e)
             {
@@ -131,7 +149,8 @@ public class Control : MonoBehaviour
             try
             {
                 StartCoroutine(MoveJoystickAxisY(deviationStep));
-                StartCoroutine(MoveArmAxisYMinus(armStep));
+                if (clawCanMove)
+                    StartCoroutine(MoveObjectAxisZ(Arm, 1, armParametersAxisZ));
             }
             catch (Exception e)
             {
@@ -176,96 +195,71 @@ public class Control : MonoBehaviour
         yield return null;
     }
 
-    IEnumerator MoveButtonDown(float step)
+    IEnumerator LowerArm(float time)
     {
-        if (Button.transform.localPosition.y > -buttonDistance)
+        clawCanMove = false;
+        float startFrameTime;
+        float updateTime = 0.01f;
+        float timePassed = 0;
+        yield return OpenClaw(openClawTime);
+        while (timePassed < time)
         {
-            Button.transform.localPosition += new Vector3(0, step, 0);
+            startFrameTime = Time.time;
+            StartCoroutine(MoveObjectAxisY(lowerMechanism, -1, lowerMechanismParameters));
+            yield return new WaitForSeconds(updateTime);
+            timePassed += Time.time - startFrameTime;
+        }
+        yield return new WaitForSeconds(time);
+        yield return CloseClaw(closeClawTime);
+        timePassed = 0;
+        while (timePassed < time)
+        {
+            startFrameTime = Time.time;
+            StartCoroutine(MoveObjectAxisY(lowerMechanism, 1, lowerMechanismParameters));
+            yield return new WaitForSeconds(updateTime);
+            timePassed += Time.time - startFrameTime;
+        }
+        yield return OpenClaw(openClawTime);
+        yield return CloseClaw(closeClawTime);
+        clawCanMove = true;
+        yield return null;
+    }
+
+    IEnumerator OpenClaw(float time)
+    {
+        yield return new WaitForSeconds(time);
+        yield return null;
+    }
+
+    IEnumerator CloseClaw(float time)
+    {
+        yield return new WaitForSeconds(time);
+        yield return null;
+    }
+
+    IEnumerator MoveObjectAxisX(Transform movable_object, float direction, movementParameters parameters)
+    {
+        if (direction > 0 && movable_object.transform.localPosition.x < parameters.MaxValue || direction < 0 && movable_object.transform.localPosition.x > parameters.MinValue)
+        {
+            movable_object.transform.localPosition += new Vector3(parameters.Step * (direction > 0 ? 1 : -1), 0, 0);
         }
         yield return null;
     }
 
-    IEnumerator MoveButtonUp(float step)
+    IEnumerator MoveObjectAxisY(Transform movable_object, float direction, movementParameters parameters)
     {
-        while (Button.transform.localPosition.y < defaultButtonPosition.y)
+        if (direction > 0 && movable_object.transform.localPosition.y < parameters.MaxValue || direction < 0 && movable_object.transform.localPosition.y > parameters.MinValue)
         {
-            Button.transform.localPosition += new Vector3(0, step, 0);
+            movable_object.transform.localPosition += new Vector3(0, parameters.Step * (direction > 0 ? 1 : -1), 0);
         }
         yield return null;
     }
 
-    IEnumerator LowerArm()
+    IEnumerator MoveObjectAxisZ(Transform movable_object, float direction, movementParameters parameters)
     {
-        yield return null;
-    }
-
-    IEnumerator MoveArmAxisXPlus(float step)
-    {
-        if (Arm.transform.localPosition.x > armMinX)
-            Arm.transform.localPosition -= new Vector3(step, 0, 0);
-        yield return null;
-    }
-    IEnumerator MoveArmAxisYPlus(float step)
-    {
-        if (Arm.transform.localPosition.y > armMinY)
-            Arm.transform.localPosition -= new Vector3(0, 0, step);
-        yield return null;
-    }
-
-    IEnumerator MoveArmAxisXMinus(float step)
-    {
-        if (Arm.transform.localPosition.x < armMaxX)
-            Arm.transform.localPosition += new Vector3(step, 0, 0);
-        yield return null;
-    }
-    IEnumerator MoveArmAxisYMinus(float step)
-    {
-        if (Arm.transform.localPosition.z < armMaxY)
-            Arm.transform.localPosition += new Vector3(0, 0, step);
-        yield return null;
-    }
-
-    IEnumerator MoveArmDown(float step)
-    {
-        if (lowerMechanism.transform.localPosition.y > armDistance)
+        if (direction > 0 && movable_object.transform.localPosition.z < parameters.MaxValue || direction < 0 && movable_object.transform.localPosition.z > parameters.MinValue)
         {
-            lowerMechanism.transform.localPosition += new Vector3(0, step, 0);
-        }
-        yield return null;
-    }
-
-    IEnumerator MoveArmUp(float step)
-    {
-        if (lowerMechanism.transform.localPosition.y < defaultArmPosition.y)
-        {
-            lowerMechanism.transform.localPosition += new Vector3(0, step, 0);
-        }
-        yield return null;
-    }
-
-    IEnumerator MoveObjectAxisX(Transform movable_object, float step, float minX, float maxX)
-    {
-        if (step>0 && movable_object.transform.localPosition.x < maxX || step < 0 && movable_object.transform.localPosition.x > minX)
-        {
-            movable_object.transform.localPosition += new Vector3(step, 0, 0);
-        }
-        yield return null;
-    }
-
-    IEnumerator MoveObjectAxisY(Transform movable_object, float step, float minY, float maxY)
-    {
-        if (step > 0 && movable_object.transform.localPosition.x < maxY || step < 0 && movable_object.transform.localPosition.x > minY)
-        {
-            movable_object.transform.localPosition += new Vector3(0, step, 0);
-        }
-        yield return null;
-    }
-
-    IEnumerator MoveObjectAxisZ(Transform movable_object, float step, float minZ, float maxZ)
-    {
-        if (step > 0 && movable_object.transform.localPosition.x < maxZ || step < 0 && movable_object.transform.localPosition.x > minZ)
-        {
-            movable_object.transform.localPosition += new Vector3(0, step, 0);
+            movable_object.transform.localPosition += new Vector3(0, 0, parameters.Step * (direction > 0 ? 1 : -1));
         }
         yield return null;
     }
