@@ -1,6 +1,5 @@
 using System;
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -9,21 +8,23 @@ public class Control : MonoBehaviour
     public Transform Joystick;
     public Transform Button;
     public Transform Arm;
-    Transform lowerMechanism;
+    public Animator animator;
+    public Text text;
+
     movementParameters JoystickParametersX;
     movementParameters JoystickParametersY;
-    float deviationAngleX;
-    float deviationAngleY;
-    Vector3 defaultJoysticPosition;
     movementParameters buttonParameters;
     movementParameters lowerMechanismParameters;
     movementParameters armParametersAxisX;
     movementParameters armParametersAxisZ;
-    bool clawCanMove;
+    Transform lowerMechanism;
+    Vector3 defaultJoysticPosition;
+    float deviationAngleX;
+    float deviationAngleY;
     float openClawTime;
     float closeClawTime;
-    public Animator animator;
-    public Text text;
+    float basketSize;
+    bool clawCanMove;
     struct movementParameters
     {
         float maxValue;
@@ -57,8 +58,9 @@ public class Control : MonoBehaviour
 
         lowerMechanismParameters = new movementParameters(6, 2, 0.01f);
 
-        armParametersAxisX = new movementParameters(0.5f, -0.5f, 0.005f);
-        armParametersAxisZ = new movementParameters(0.25f, -0.75f, 0.005f);
+        armParametersAxisX = new movementParameters(0.5f, -0.5f, 0.002f);
+        armParametersAxisZ = new movementParameters(0.25f, -0.75f, 0.002f);
+        basketSize = 0.4f;
 
         clawCanMove = true;
 
@@ -66,9 +68,6 @@ public class Control : MonoBehaviour
         closeClawTime = 1f;
 
         StartCoroutine(CloseClaw(closeClawTime));
-
-
-        
     }
 
     // Update is called once per frame
@@ -99,7 +98,7 @@ public class Control : MonoBehaviour
         {
             try
             {
-                if (clawCanMove)
+                if (clawCanMove && (Arm.localPosition.x < armParametersAxisX.MaxValue-basketSize || Arm.localPosition.z < armParametersAxisZ.MaxValue - basketSize))
                     StartCoroutine(LowerArm());
             }
             catch (Exception e)
@@ -222,7 +221,7 @@ public class Control : MonoBehaviour
     IEnumerator LowerArm()
     {
         clawCanMove = false;
-        float updateTime = 0.005f;
+        float updateTime = 0.02f;
         yield return OpenClaw(openClawTime);
         while (lowerMechanism.localPosition.y>lowerMechanismParameters.MinValue)
         {
@@ -235,8 +234,17 @@ public class Control : MonoBehaviour
             StartCoroutine(MoveObjectAxisY(lowerMechanism, 1, lowerMechanismParameters));
             yield return new WaitForSeconds(updateTime);
         }
+        while (Arm.localPosition.x < armParametersAxisX.MaxValue- basketSize/5 || Arm.localPosition.z < armParametersAxisZ.MaxValue - basketSize/5)
+        {
+            StartCoroutine(MoveObjectAxisX(Arm, 1, armParametersAxisX));
+            StartCoroutine(MoveObjectAxisZ(Arm, 1, armParametersAxisZ));
+            yield return new WaitForSeconds(updateTime);
+        }
+        yield return new WaitForSeconds(1);
         yield return OpenClaw(openClawTime);
+        yield return new WaitForSeconds(1);
         yield return CloseClaw(closeClawTime);
+        yield return new WaitForSeconds(1);
         clawCanMove = true;
         yield return null;
     }
