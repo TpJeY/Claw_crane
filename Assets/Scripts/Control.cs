@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class Control : MonoBehaviour
 {
@@ -16,13 +17,13 @@ public class Control : MonoBehaviour
     Vector3 defaultJoysticPosition;
     movementParameters buttonParameters;
     movementParameters lowerMechanismParameters;
-    float lowerMechanismTime;
     movementParameters armParametersAxisX;
     movementParameters armParametersAxisZ;
     bool clawCanMove;
     float openClawTime;
     float closeClawTime;
-
+    public Animator animator;
+    public Text text;
     struct movementParameters
     {
         float maxValue;
@@ -54,8 +55,7 @@ public class Control : MonoBehaviour
 
         buttonParameters = new movementParameters(0, -0.025f, 0.005f);
 
-        lowerMechanismParameters = new movementParameters(6, 1, 0.01f);
-        lowerMechanismTime = 7f;
+        lowerMechanismParameters = new movementParameters(6, 2, 0.01f);
 
         armParametersAxisX = new movementParameters(0.5f, -0.5f, 0.005f);
         armParametersAxisZ = new movementParameters(0.25f, -0.75f, 0.005f);
@@ -64,6 +64,11 @@ public class Control : MonoBehaviour
 
         openClawTime = 1f;
         closeClawTime = 1f;
+
+        StartCoroutine(CloseClaw(closeClawTime));
+
+
+        
     }
 
     // Update is called once per frame
@@ -95,7 +100,7 @@ public class Control : MonoBehaviour
             try
             {
                 if (clawCanMove)
-                    StartCoroutine(LowerArm(lowerMechanismTime));
+                    StartCoroutine(LowerArm());
             }
             catch (Exception e)
             {
@@ -166,6 +171,20 @@ public class Control : MonoBehaviour
             if (Mathf.Abs(Joystick.transform.localEulerAngles.x - defaultJoysticPosition.x) > JoystickParametersY.Step)
                 StartCoroutine(RotateObjectInDefaultPositionAxisY(Joystick, defaultJoysticPosition, JoystickParametersY));
         }
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            try
+            {
+                Application.Quit();
+            }
+            catch (Exception e)
+            {
+                print(e.Message);
+            }
+        }
+        if (Input.anyKeyDown)
+            text.text = "";
+
     }
 
     IEnumerator RotateObjectAxisX(Transform movable_object, float direction, movementParameters parameters)
@@ -200,29 +219,21 @@ public class Control : MonoBehaviour
         yield return null;
     }
 
-    IEnumerator LowerArm(float time)
+    IEnumerator LowerArm()
     {
         clawCanMove = false;
-        float startFrameTime;
-        float updateTime = 0.01f;
-        float timePassed = 0;
+        float updateTime = 0.005f;
         yield return OpenClaw(openClawTime);
-        while (timePassed < time)
+        while (lowerMechanism.localPosition.y>lowerMechanismParameters.MinValue)
         {
-            startFrameTime = Time.time;
             StartCoroutine(MoveObjectAxisY(lowerMechanism, -1, lowerMechanismParameters));
             yield return new WaitForSeconds(updateTime);
-            timePassed += Time.time - startFrameTime;
         }
-        yield return new WaitForSeconds(time);
         yield return CloseClaw(closeClawTime);
-        timePassed = 0;
-        while (timePassed < time)
+        while (lowerMechanism.localPosition.y < lowerMechanismParameters.MaxValue)
         {
-            startFrameTime = Time.time;
             StartCoroutine(MoveObjectAxisY(lowerMechanism, 1, lowerMechanismParameters));
             yield return new WaitForSeconds(updateTime);
-            timePassed += Time.time - startFrameTime;
         }
         yield return OpenClaw(openClawTime);
         yield return CloseClaw(closeClawTime);
@@ -232,12 +243,16 @@ public class Control : MonoBehaviour
 
     IEnumerator OpenClaw(float time)
     {
+        animator.SetBool("Open", true);
+        animator.SetBool("Close", false);
         yield return new WaitForSeconds(time);
         yield return null;
     }
 
     IEnumerator CloseClaw(float time)
     {
+        animator.SetBool("Open", false);
+        animator.SetBool("Close", true);
         yield return new WaitForSeconds(time);
         yield return null;
     }
